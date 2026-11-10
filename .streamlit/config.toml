@@ -1,0 +1,15 @@
+# Mirrors portfolio_risk/ui/theme.py. Used when Streamlit is started directly,
+# for example by Streamlit Community Cloud. The launcher passes the same values itself.
+
+[theme]
+base = "dark"
+primaryColor = "#2BB3A3"
+backgroundColor = "#0B0C0E"
+secondaryBackgroundColor = "#14161A"
+textColor = "#ECECEC"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

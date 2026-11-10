@@ -1,0 +1,4 @@
+# Runtime dependencies are declared in pyproject.toml. This file lets hosting platforms
+# that only look for requirements.txt (for example Streamlit Community Cloud) install the
+# package together with the interface.
+.[app]

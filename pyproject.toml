@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "portfolio-risk-lab"
+dynamic = ["version"]
+description = "Return, risk and drawdown analytics for multi-asset portfolios, built from price and weight CSV files."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Saad Laher" }]
+keywords = ["portfolio", "risk", "value-at-risk", "drawdown", "quantitative-finance"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Typing :: Typed",
+]
+dependencies = [
+    "numpy>=2.1",
+    "pandas>=2.2",
+]
+
+[project.optional-dependencies]
+app = [
+    "streamlit>=1.58",
+    "certifi",
+    "reportlab>=4.0",
+    "openpyxl>=3.1",
+]
+data = [
+    "yfinance>=0.2.50",
+]
+dev = [
+    "streamlit>=1.58",
+    "certifi",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pandas-stubs>=2.2",
+    "reportlab>=4.0",
+    "openpyxl>=3.1",
+    "pypdf>=4.0",
+]
+
+[project.scripts]
+portfolio-risk-lab = "portfolio_risk.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "portfolio_risk.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+portfolio_risk = ["py.typed", "ui/style.css", "ui/fonts/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "C4", "PT", "RUF", "PL"]
+ignore = [
+    "PLR2004",  # magic values in comparisons are common in numerical code
+    "PLR0913",  # explicit keyword arguments are preferred over option objects here
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR0915"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests", "scripts", "streamlit_app.py"]
+
+[[tool.mypy.overrides]]
+# Playwright is only needed for the optional scripts/browser_check.py.
+module = ["playwright.*", "reportlab.*", "openpyxl.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["portfolio_risk"]
+branch = true
+# Streamlit's test harness executes the app script in a way coverage cannot trace, so it
+# reads 0% even though tests/test_ui_app.py runs it. __main__.py is a three-line shim.
+omit = ["*/portfolio_risk/ui/app.py", "*/portfolio_risk/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
