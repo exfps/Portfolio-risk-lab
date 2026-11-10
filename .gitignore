@@ -29,6 +29,6 @@ htmlcov/
 Thumbs.db
 
 # User data: never commit real portfolios or broker exports
-data/
-uploads/
+/data/
+/uploads/
 *.local.csv
