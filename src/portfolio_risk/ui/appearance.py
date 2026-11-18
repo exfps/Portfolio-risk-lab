@@ -8,13 +8,16 @@ the same ``Appearance``. Streamlit's own widgets (toggles, sliders) keep the bas
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import streamlit as st
 
 from portfolio_risk.ui import theme
 
 THEME_KEY, CUSTOM_KEY, ACCENT_KEY, SIZE_KEY = "ap_theme", "ap_custom", "ap_accent", "ap_size"
+LINES_KEY, LINE_WIDTH_KEY = "ap_lines", "ap_line_width"
+LINE_MODES = ("Standard", "Colour-blind safe")
+DEFAULT_LINE_WIDTH = 1.6
 INITIALISED = "ap_initialised"
 DEFAULT_SIZE = "Comfortable"
 
@@ -25,12 +28,33 @@ class Appearance:
     base_px: int
 
 
-def resolve(preset: str, custom_accent: str | None, size: str) -> Appearance:
+def resolve(
+    preset: str,
+    custom_accent: str | None,
+    size: str,
+    lines: str = LINE_MODES[0],
+    line_width: float = DEFAULT_LINE_WIDTH,
+) -> Appearance:
     """Turn raw choices into an ``Appearance``, falling back to defaults for unknown values."""
     palette = theme.PRESETS.get(preset, theme.DEFAULT)
     if custom_accent and theme.is_hex(custom_accent):
         palette = theme.with_accent(palette, custom_accent)
+    low, high = theme.LINE_WIDTHS
+    palette = replace(
+        palette,
+        colour_blind_lines=lines == LINE_MODES[1],
+        line_width=min(max(float(line_width), low), high),
+    )
     return Appearance(palette, theme.FONT_SIZES.get(size, theme.FONT_SIZES[DEFAULT_SIZE]))
+
+
+def _width_from(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        return DEFAULT_LINE_WIDTH
+    low, high = theme.LINE_WIDTHS
+    return min(max(value, low), high)
 
 
 def _load_from_address() -> None:
@@ -47,6 +71,9 @@ def _load_from_address() -> None:
     st.session_state.setdefault(ACCENT_KEY, accent.upper() if theme.is_hex(accent) else "")
     size = params.get("size", DEFAULT_SIZE)
     st.session_state.setdefault(SIZE_KEY, size if size in theme.FONT_SIZES else DEFAULT_SIZE)
+    lines = params.get("lines", LINE_MODES[0])
+    st.session_state.setdefault(LINES_KEY, lines if lines in LINE_MODES else LINE_MODES[0])
+    st.session_state.setdefault(LINE_WIDTH_KEY, _width_from(params.get("lw", "")))
     st.session_state[INITIALISED] = True
 
 
@@ -58,6 +85,8 @@ def current() -> Appearance:
         str(st.session_state.get(THEME_KEY, theme.DEFAULT.name)),
         str(custom) if custom else None,
         str(st.session_state.get(SIZE_KEY, DEFAULT_SIZE)),
+        str(st.session_state.get(LINES_KEY, LINE_MODES[0])),
+        float(st.session_state.get(LINE_WIDTH_KEY, DEFAULT_LINE_WIDTH)),
     )
 
 
@@ -69,7 +98,11 @@ def _write_address() -> None:
         wanted["accent"] = str(st.session_state[ACCENT_KEY])
     if st.session_state[SIZE_KEY] != DEFAULT_SIZE:
         wanted["size"] = st.session_state[SIZE_KEY]
-    for key in ("theme", "accent", "size"):
+    if st.session_state[LINES_KEY] != LINE_MODES[0]:
+        wanted["lines"] = st.session_state[LINES_KEY]
+    if abs(float(st.session_state[LINE_WIDTH_KEY]) - DEFAULT_LINE_WIDTH) > 1e-9:
+        wanted["lw"] = f"{float(st.session_state[LINE_WIDTH_KEY]):g}"
+    for key in ("theme", "accent", "size", "lines", "lw"):
         if key in wanted:
             st.query_params[key] = wanted[key]
         elif key in st.query_params:
@@ -90,4 +123,14 @@ def controls() -> None:
                 st.caption(f"Lightened to {shown} so it stays readable on the dark background.")
         st.select_slider(
             "Text size", list(theme.FONT_SIZES), key=SIZE_KEY, on_change=_write_address
+        )
+        st.selectbox(
+            "Chart lines",
+            LINE_MODES,
+            key=LINES_KEY,
+            on_change=_write_address,
+            help="Colour-blind safe also gives each line its own dash pattern.",
+        )
+        st.slider(
+            "Line width", *theme.LINE_WIDTHS, step=0.2, key=LINE_WIDTH_KEY, on_change=_write_address
         )

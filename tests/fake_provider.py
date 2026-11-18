@@ -42,6 +42,8 @@ def serve() -> Iterator[Fake]:
             payload = raw if isinstance(raw, bytes) else json.dumps(reply["body"]).encode()
             self.send_response(int(reply["status"]))  # type: ignore[call-overload]
             self.send_header("Content-Type", "application/json")
+            for name, value in dict(reply.get("headers") or {}).items():  # type: ignore[call-overload]
+                self.send_header(name, value)
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             with contextlib.suppress(OSError):

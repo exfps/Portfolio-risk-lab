@@ -30,6 +30,13 @@ src/portfolio_risk/
 ├── exposure.py      correlation, covariance, HHI, effective positions, risk contributions
 ├── benchmark.py     beta, alpha, tracking error, information ratio
 ├── analysis.py      analyse(): runs everything and returns one AnalysisResult
+├── tearsheet.py     20 statistic rows, monthly and calendar-year tables, rolling statistics
+├── comparison.py    compare(): several constant-weight portfolios on common dates; JSON store
+├── decay.py         alpha decay: rolling-window statistics, oriented z-scores, ratings
+├── simulation/      Monte Carlo: models, engine (rebalancing, costs), per-path statistics, run
+│   ├── models.py      Gaussian, Student-t, bootstrap and block bootstrap behind one protocol
+│   ├── engine.py      SimulationConfig, frequency conversion, wealth paths
+│   └── analytics.py   path and across-path statistics, fan bands (NumPy only)
 ├── sample_data.py   seeded synthetic prices and weights
 ├── _checks.py       shared argument checks
 ├── cli.py           `portfolio-risk-lab` command: launches Streamlit with the project theme
@@ -42,11 +49,17 @@ src/portfolio_risk/
 │   ├── yahoo.py       Yahoo Finance adapter over the unofficial yfinance library
 │   ├── fx.py          conversion to a base currency with provider exchange-rate series
 │   ├── align.py       common-day or weekly alignment; mixed-currency warnings (no conversion)
+│   ├── universe.py    default instrument list loader and validator (universe.json, symbols only)
 │   └── cache.py       CachedProvider (15-minute TTL, bounded) and download_many (parallel)
 ├── report/          optional exports; needs reportlab and openpyxl, the core never imports it
 │   ├── meta.py        ReportMeta (title, data source, accent), disclaimer, assumptions text
-│   ├── pdf.py         three-page PDF with vector charts
-│   └── excel.py       workbook with native Excel charts
+│   ├── inputs.py      section keys, ReportInputs, unavailable() and resolve(); no reportlab
+│   ├── style.py       ReportStyle, presets, JSON round trip, validation; no reportlab
+│   ├── look.py        a style as reportlab colours and fonts, held in a context variable
+│   ├── filename.py    safe_stem(): a valid cross-platform file name from typed text
+│   ├── pdf.py         build_pdf(): selected sections, page tone, vector charts
+│   ├── pdf_parts.py   styles, tables and charts   pdf_sections.py  one builder per section
+│   └── excel*.py      build_workbook(): one sheet per section with native charts
 ├── vision/          optional screenshot import; standard library only, the core never imports it
 │   ├── providers.py   OpenAI-compatible (OpenAI, DeepSeek) and Anthropic clients, HTTPS only, key redaction
 │   ├── schema.py      strict parsing of the model's answer; positions to weights
@@ -55,6 +68,10 @@ src/portfolio_risk/
 └── ui/              needs the `app` extra; the core never imports it
     ├── app.py         Streamlit script: inputs, settings, tabs
     ├── charts.py      Altair charts
+    ├── tearsheet_view.py, compare_view.py, simulation_view.py, decay_view.py   the analysis tabs
+    ├── *_tables.py    pure table builders the tabs and the reports share (no Streamlit)
+    ├── report_state.py     latest simulation and comparison, tied to the data they came from
+    ├── report_style_panel.py   the Look tab: preset, colours, per-series table, JSON, address
     ├── style.css      stylesheet template; dollar-prefixed names are filled from theme.py
     ├── styles.py      builds the stylesheet and embeds the bundled font (fonts/) as data URIs
     ├── formatting.py  result objects to display tables (percent, n/a for non-finite)
@@ -142,3 +159,23 @@ weights.csv ──load_weights─▶ Series ────┤
   dominated by Streamlit's own JavaScript (about 1 s bare). The changes that helped were cached
   analysis, lazy tabs, parallel downloads, a provider TTL cache and plain HTML tables. A lazy
   weights editor gave no measurable gain and was reverted.
+
+## Design decisions added with the analysis tabs and report styles
+
+- **The core never imports the interface, and neither does the report layer.** Tables that both
+  a tab and a report need live in `ui/*_tables.py` with no Streamlit import, so reports can use
+  them without pulling in the app.
+- **Lazy tabs.** `_render_results` holds the tabs as an ordered mapping and draws only the open
+  one, so a heavy tab (a simulation, a comparison) costs nothing until used.
+- **No hidden computation in exports.** The report takes the Monte Carlo and comparison results
+  the person has already produced, tied to the data and weights by a signature. If either
+  changed, the stored result is dropped. Choosing a section that has no result is impossible,
+  and the panel says why.
+- **Report style is data, applied through a context variable.** `ReportStyle` is a validated
+  frozen dataclass (JSON in and out). `build_pdf` and `build_workbook` set the active look for
+  the duration of one build, so two sessions building reports at the same time cannot see each
+  other's style, and nothing is stored at module level.
+- **In-app chart lines and PDF lines are styled separately.** The PDF styles use colours chosen
+  for white paper; the interface is dark, so it offers a colour-blind-safe set and a width.
+- **Reproducibility.** Simulations take a seed. The tests use hand-calculated expectations for
+  the statistics, and seeded runs for the models.

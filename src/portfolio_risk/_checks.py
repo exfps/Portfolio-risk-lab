@@ -21,9 +21,16 @@ def finite_values(returns: pd.Series, *, minimum: int, statistic: str) -> npt.ND
     return values
 
 
+#: Spread below which a series is treated as constant. Returns are of order 1e-2, so a spread
+#: under 1e-12 is floating-point noise (for example from prices compounding at a fixed rate),
+#: and dividing by the resulting standard deviation would give meaningless ratios of 1e13.
+CONSTANT_TOLERANCE = 1e-12
+
+
 def is_constant(values: npt.NDArray[np.float64]) -> bool:
-    """True when every element is identical. Exact comparison: no tolerance is applied."""
-    return bool(values.min() == values.max())
+    """True when every element is equal up to floating-point noise (``CONSTANT_TOLERANCE``)."""
+    scale = max(1.0, float(np.abs(values).max()))
+    return bool(float(np.ptp(values)) <= CONSTANT_TOLERANCE * scale)
 
 
 def check_confidence(confidence: float) -> None:

@@ -8,6 +8,17 @@ Status of planned work. Items are not promises; the order follows what makes the
 - Streamlit interface with CSV upload, editable weights and benchmark comparison.
 - Optional screenshot import with a user-supplied API key (Anthropic, OpenAI, DeepSeek).
 
+## Done: version 0.2 features (all offline-tested)
+
+- [x] Default list of 25 stocks and 12 index funds (symbols only).
+- [x] Monte Carlo projection: four return models, rebalancing, costs, scenarios.
+- [x] Alpha decay: ten rolling-window statistics rated against their own history.
+- [x] Classic tearsheet: statistics side by side, monthly grid, calendar years, rolling, drawdowns.
+- [x] Portfolio comparison with saved weight sets (JSON).
+- [x] Reports with selectable sections, a chosen file name and a style customiser (presets,
+      colour-blind safe, black and white print, per-series overrides, JSON).
+- [x] Quieter interface; colour-blind chart lines and line width.
+
 ## Done: price download by ticker
 
 - [x] Replaceable price-provider interface (`portfolio_risk.data`) with a Yahoo Finance adapter.
@@ -42,5 +53,7 @@ Kuwait, Bahrain, Oman).
 
 - [x] PDF and Excel report, theme customiser (done).
 - [ ] Buy-and-hold with real transactions: time-weighted and money-weighted returns.
+- [ ] Live verification on the owner's machine (see `docs/verification.md`).
+- [ ] Factor regression; regimes.
 - [x] Windows CI job (added; not yet run on GitHub). [ ] Verification on real Windows hardware.
 - [ ] Screenshot import: test against the real provider APIs, downscale images and strip metadata.

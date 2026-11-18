@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -71,6 +72,40 @@ def tab(page: Page, label: str) -> None:
     page.wait_for_timeout(1500)
 
 
+def scene_compare(page: Page, out: Path) -> None:
+    tab(page, "Compare")
+    page.wait_for_selector("text=Saved portfolios", timeout=30_000)
+    sample = {
+        "Equity heavy": {"SYN_EQ_US": 0.4, "SYN_EQ_EU": 0.3, "SYN_EQ_EM": 0.2, "SYN_GOVT": 0.1},
+        "Defensive": {"SYN_GOVT": 0.5, "SYN_CORP": 0.3, "SYN_EQ_US": 0.2},
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        path = f"{tmp}/portfolios.json"
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "version": 1,
+                    "portfolios": [{"name": n, "weights": w} for n, w in sample.items()],
+                },
+                handle,
+            )
+        # the export panel has a JSON loader too, so pick the one inside the Compare tab
+        panel = page.locator("[role=tabpanel]").filter(has_text="Saved portfolios").last
+        panel.locator("input[type=file][accept*='json']").set_input_files(path)
+        page.wait_for_selector("text=Loaded 2 portfolios", timeout=30_000)
+    box = page.get_by_label("Portfolios to compare")
+    box.click()
+    for name in ("Equity heavy", "Defensive"):
+        page.get_by_role("option", name=name).click()
+    page.keyboard.press("Escape")
+    page.wait_for_selector("text=Key statistics", timeout=30_000)
+    page.wait_for_timeout(2000)
+    shoot(page, out, "compare.png")
+    page.get_by_text("Holdings", exact=True).first.scroll_into_view_if_needed()
+    page.wait_for_timeout(1200)
+    shoot(page, out, "compare-holdings.png")
+
+
 def scene_main(page: Page, url: str, out: Path) -> None:
     open_app(page, url)
     shoot(page, out, "overview.png")
@@ -80,11 +115,58 @@ def scene_main(page: Page, url: str, out: Path) -> None:
     shoot(page, out, "correlation.png")
     tab(page, "Benchmark")
     shoot(page, out, "benchmark.png")
+    tab(page, "Tearsheet")
+    page.wait_for_selector("text=Key statistics", timeout=30_000)
+    page.wait_for_timeout(2000)
+    shoot(page, out, "tearsheet.png")
+    page.get_by_text("Returns by calendar year").scroll_into_view_if_needed()
+    page.wait_for_timeout(1500)
+    shoot(page, out, "tearsheet-calendar.png")
+    page.get_by_text("Drawdowns", exact=True).scroll_into_view_if_needed()
+    page.wait_for_timeout(1500)
+    shoot(page, out, "tearsheet-drawdowns.png")
+    scene_compare(page, out)
+    tab(page, "Monte Carlo")
+    shoot(page, out, "monte-carlo-controls.png")
+    page.get_by_role("combobox", name="Models").click()
+    page.get_by_role("option", name="Gaussian (normal)").click()
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="Run simulation").click()
+    page.wait_for_selector("text=Projection: Student-t", timeout=90_000)
+    page.wait_for_timeout(2500)
+    page.get_by_text("Projection: Student-t").scroll_into_view_if_needed()
+    page.wait_for_timeout(800)
+    shoot(page, out, "monte-carlo.png")
+    page.get_by_text("Scenarios", exact=True).scroll_into_view_if_needed()
+    page.wait_for_timeout(800)
+    shoot(page, out, "monte-carlo-tables.png")
+    tab(page, "Alpha Decay")
+    page.wait_for_selector("table.decay", timeout=30_000)
+    page.wait_for_timeout(1500)
+    shoot(page, out, "alpha-decay.png")
+    page.get_by_text("Window", exact=True).last.scroll_into_view_if_needed()
+    page.wait_for_selector(
+        "[data-testid='stVegaLiteChart'] canvas, [data-testid='stVegaLiteChart'] svg"
+    )
+    page.wait_for_timeout(1200)
+    page.mouse.wheel(0, 380)
+    page.wait_for_timeout(600)
+    shoot(page, out, "alpha-decay-chart.png")
     tab(page, "Assumptions")
     shoot(page, out, "assumptions.png")
     page.get_by_text("Appearance", exact=True).click()
     page.wait_for_timeout(600)
     shoot(page, out, "appearance.png")
+
+
+def scene_export(page: Page, url: str, out: Path) -> None:
+    open_app(page, url, "/?pdf=Editorial")
+    page.get_by_text("Export report (PDF or Excel)").click()
+    page.wait_for_timeout(1200)
+    shoot(page, out, "export-contents.png")
+    page.get_by_role("tab", name="Look").click()
+    page.wait_for_timeout(1200)
+    shoot(page, out, "export-look.png")
 
 
 def scene_themes(page: Page, url: str, out: Path) -> None:
@@ -99,6 +181,14 @@ def scene_themes(page: Page, url: str, out: Path) -> None:
 def scene_download(page: Page, url: str, out: Path) -> None:
     open_app(page, url)
     page.get_by_text("Search and download", exact=True).click()
+    picker = page.get_by_role("combobox", name="Choose from the list")
+    for name in ("AAPL", "2222.SR", "NVDA"):
+        picker.click()
+        picker.fill(name)
+        page.get_by_role("option", name=re.compile(rf"^{re.escape(name)}\s")).first.click()
+        page.wait_for_timeout(300)
+    page.keyboard.press("Escape")
+    shoot(page, out, "default-list.png")
     page.get_by_label("Find a ticker").fill("demo")
     page.get_by_label("Find a ticker").press("Enter")
     page.wait_for_selector("text=Add to portfolio", timeout=30_000)
@@ -149,7 +239,9 @@ def scene_import(page: Page, url: str, out: Path, fake: object, workdir: Path) -
     }
     open_app(page, url)
     page.get_by_text("Upload CSV files", exact=True).click()
-    page.locator('input[type="file"]').first.set_input_files(str(prices))
+    page.get_by_test_id("stSidebar").locator('input[type="file"]').first.set_input_files(
+        str(prices)
+    )
     settle(page)
     page.get_by_text("Import positions from a screenshot").click()
     page.get_by_label("API key", exact=True).fill("sk-demo-not-a-real-key")
@@ -199,6 +291,7 @@ def main() -> int:
                 scenes: list[Callable[[Page], None]] = [
                     lambda p: scene_main(p, url, out),
                     lambda p: scene_themes(p, url, out),
+                    lambda p: scene_export(p, url, out),
                     lambda p: scene_download(p, url, out),
                     lambda p: scene_import(p, url, out, fake, Path(work)),
                 ]

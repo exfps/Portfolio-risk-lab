@@ -4,67 +4,43 @@ from __future__ import annotations
 
 import io
 import math
+from collections.abc import Iterable
 from typing import Any
 
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.formatting.rule import ColorScaleRule
-from openpyxl.styles import Alignment, Border, Font, Side
+from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from portfolio_risk.analysis import AnalysisResult
+from portfolio_risk.report import excel_sections
+from portfolio_risk.report.excel_common import (
+    DATE,
+    PCT,
+    PCT1,
+    RATIO,
+    header,
+    number,
+    paragraph,
+    title,
+    widths,
+)
+from portfolio_risk.report.inputs import ReportInputs, resolve
+from portfolio_risk.report.look import make_look, use
 from portfolio_risk.report.meta import ASSUMPTIONS, DISCLAIMER, ReportMeta
+from portfolio_risk.report.style import ReportStyle
 from portfolio_risk.ui import formatting
-
-PCT = "0.00%"
-PCT1 = "0.0%"
-RATIO = "0.00"
-DATE = "yyyy-mm-dd"
-
-
-def _number(value: float) -> float | None:
-    """Excel cannot store NaN or infinity; leave the cell empty instead."""
-    return float(value) if math.isfinite(value) else None
-
-
-def _header(ws: Worksheet, row: int, labels: list[str], accent: str) -> None:
-    side = Side(style="thin", color=accent)
-    for col, label in enumerate(labels, start=1):
-        cell = ws.cell(row=row, column=col, value=label)
-        cell.font = Font(bold=True, color=accent)
-        cell.border = Border(bottom=side)
-        cell.alignment = Alignment(horizontal="left" if col == 1 else "right")
-
-
-def _title(ws: Worksheet, text: str, accent: str) -> None:
-    ws["A1"] = text
-    ws["A1"].font = Font(size=14, bold=True, color=accent)
-
-
-def _paragraph(
-    ws: Worksheet, row: int, text: str, *, font: Font | None = None, last: str = "F"
-) -> None:
-    """Long text across columns A to ``last``, wrapped, so it prints and reads without scrolling."""
-    ws.merge_cells(f"A{row}:{last}{row}")
-    cell = ws.cell(row=row, column=1, value=text)
-    cell.alignment = Alignment(wrap_text=True, vertical="top")
-    if font is not None:
-        cell.font = font
-    ws.row_dimensions[row].height = 15 * max(1, math.ceil(len(text) / 110))
-
-
-def _widths(ws: Worksheet, widths: dict[str, float]) -> None:
-    for letter, width in widths.items():
-        ws.column_dimensions[letter].width = width
 
 
 def _summary(wb: Workbook, result: AnalysisResult, meta: ReportMeta, accent: str) -> None:
     ws = wb.active
-    assert ws is not None
+    if ws is None:  # a new Workbook always has an active sheet; this satisfies the type checker
+        raise RuntimeError("Workbook has no active sheet.")
     ws.title = "Summary"
-    _title(ws, meta.title, accent)
+    title(ws, meta.title, accent)
     facts = [
         ("Period", f"{formatting.day(result.start)} to {formatting.day(result.end)}"),
         ("Observations", result.observations),
@@ -77,7 +53,7 @@ def _summary(wb: Workbook, result: AnalysisResult, meta: ReportMeta, accent: str
         ws.cell(row=i, column=1, value=label).font = Font(color="666666")
         ws.cell(row=i, column=2, value=value).alignment = Alignment(horizontal="left")
     row = 3 + len(facts) + 1
-    _header(ws, row, ["Metric", "Value"], accent)
+    header(ws, row, ["Metric", "Value"], accent)
     p = result.performance
     metrics: list[tuple[str, float, str]] = [
         ("Total return", p.total_return, PCT),
@@ -91,7 +67,7 @@ def _summary(wb: Workbook, result: AnalysisResult, meta: ReportMeta, accent: str
     ]
     for i, (label, value, fmt) in enumerate(metrics, start=row + 1):
         ws.cell(row=i, column=1, value=label)
-        cell = ws.cell(row=i, column=2, value=_number(value))
+        cell = ws.cell(row=i, column=2, value=number(value))
         cell.number_format = fmt
     row += len(metrics) + 2
     ws.cell(row=row, column=1, value="Assumptions").font = Font(bold=True, color=accent)
@@ -102,29 +78,29 @@ def _summary(wb: Workbook, result: AnalysisResult, meta: ReportMeta, accent: str
         else " (source not recorded)."
     )
     for i, text in enumerate([*ASSUMPTIONS, rf], start=row + 1):
-        _paragraph(ws, i, text)
+        paragraph(ws, i, text)
     note_row = row + len(ASSUMPTIONS) + 3
-    _paragraph(ws, note_row, DISCLAIMER, font=Font(italic=True, color="666666"))
+    paragraph(ws, note_row, DISCLAIMER, font=Font(italic=True, color="666666"))
     for text in result.warnings:
         note_row += 1
-        _paragraph(ws, note_row, f"Warning: {text}", font=Font(color="B5523B"))
-    _widths(ws, {"A": 34, "B": 30, "C": 14, "D": 14, "E": 14, "F": 14})
+        paragraph(ws, note_row, f"Warning: {text}", font=Font(color="B5523B"))
+    widths(ws, {"A": 34, "B": 30, "C": 14, "D": 14, "E": 14, "F": 14})
 
 
 def _series_sheet(wb: Workbook, result: AnalysisResult, accent: str) -> Worksheet:
     ws = wb.create_sheet("Series")
-    _header(ws, 1, ["Date", "Portfolio return", "Wealth index (start = 1)", "Drawdown"], accent)
+    header(ws, 1, ["Date", "Portfolio return", "Wealth index (start = 1)", "Drawdown"], accent)
     returns = result.portfolio_returns.reindex(result.wealth.index)
     for i, (when, wealth) in enumerate(result.wealth.items(), start=2):
         ws.cell(row=i, column=1, value=pd.Timestamp(when).to_pydatetime()).number_format = DATE  # type: ignore[arg-type]
         r = returns.get(when)
-        ws.cell(row=i, column=2, value=None if r is None else _number(float(r))).number_format = PCT
-        ws.cell(row=i, column=3, value=_number(float(wealth))).number_format = "0.0000"
+        ws.cell(row=i, column=2, value=None if r is None else number(float(r))).number_format = PCT
+        ws.cell(row=i, column=3, value=number(float(wealth))).number_format = "0.0000"
         ws.cell(
-            row=i, column=4, value=_number(float(result.drawdowns.get(when, math.nan)))
+            row=i, column=4, value=number(float(result.drawdowns.get(when, math.nan)))
         ).number_format = PCT
     ws.freeze_panes = "A2"
-    _widths(ws, {"A": 12, "B": 18, "C": 26, "D": 12})
+    widths(ws, {"A": 12, "B": 18, "C": 26, "D": 12})
     return ws
 
 
@@ -159,8 +135,8 @@ def _line(
 
 def _performance(wb: Workbook, result: AnalysisResult, series: Worksheet, accent: str) -> None:
     ws = wb.create_sheet("Performance", 1)
-    _title(ws, "Performance", accent)
-    _header(ws, 3, ["Measure", "Value"], accent)
+    title(ws, "Performance", accent)
+    header(ws, 3, ["Measure", "Value"], accent)
     for i, (label, value) in enumerate(
         formatting.drawdown_table(result).itertuples(index=False), start=4
     ):
@@ -186,13 +162,13 @@ def _performance(wb: Workbook, result: AnalysisResult, series: Worksheet, accent
         ),
         "A28",
     )
-    _widths(ws, {"A": 30, "B": 20})
+    widths(ws, {"A": 30, "B": 20})
 
 
 def _risk(wb: Workbook, result: AnalysisResult, accent: str) -> None:
     ws = wb.create_sheet("Risk")
-    _title(ws, "Value at Risk and exposure", accent)
-    _header(
+    title(ws, "Value at Risk and exposure", accent)
+    header(
         ws,
         3,
         ["Confidence", "Historical VaR", "Historical CVaR", "Parametric VaR", "Parametric CVaR"],
@@ -203,13 +179,13 @@ def _risk(wb: Workbook, result: AnalysisResult, accent: str) -> None:
         for col, value in enumerate(
             (e.historical_var, e.historical_cvar, e.parametric_var, e.parametric_cvar), start=2
         ):
-            ws.cell(row=i, column=col, value=_number(value)).number_format = PCT
+            ws.cell(row=i, column=col, value=number(value)).number_format = PCT
     top = 4 + len(result.var) + 1
     ws.cell(row=top, column=1, value="One-period losses, shown as positive numbers.").font = Font(
         italic=True, color="666666"
     )
     start = top + 2
-    _header(
+    header(
         ws,
         start,
         ["Asset", "Weight", "Return (ann.)", "Volatility (ann.)", "Max drawdown", "Risk share"],
@@ -228,7 +204,7 @@ def _risk(wb: Workbook, result: AnalysisResult, accent: str) -> None:
             ],
             start=2,
         ):
-            ws.cell(row=i, column=col, value=_number(float(row[key]))).number_format = fmt
+            ws.cell(row=i, column=col, value=number(float(row[key]))).number_format = fmt
     end = start + len(table)
     chart = BarChart()
     chart.type = "bar"
@@ -241,18 +217,18 @@ def _risk(wb: Workbook, result: AnalysisResult, accent: str) -> None:
     chart.x_axis.delete = False
     chart.y_axis.delete = False
     ws.add_chart(chart, f"A{end + 3}")
-    _widths(ws, {"A": 22, "B": 16, "C": 16, "D": 18, "E": 16, "F": 14})
+    widths(ws, {"A": 22, "B": 16, "C": 16, "D": 18, "E": 16, "F": 14})
 
 
 def _correlation(wb: Workbook, result: AnalysisResult, accent: str) -> None:
     ws = wb.create_sheet("Correlation")
-    _title(ws, "Correlation of asset returns", accent)
+    title(ws, "Correlation of asset returns", accent)
     matrix = result.correlation
-    _header(ws, 3, ["", *[str(c) for c in matrix.columns]], accent)
+    header(ws, 3, ["", *[str(c) for c in matrix.columns]], accent)
     for i, (name, row) in enumerate(matrix.iterrows(), start=4):
         ws.cell(row=i, column=1, value=str(name)).font = Font(bold=True)
         for j, value in enumerate(row, start=2):
-            ws.cell(row=i, column=j, value=_number(float(value))).number_format = RATIO
+            ws.cell(row=i, column=j, value=number(float(value))).number_format = RATIO
     last = get_column_letter(1 + matrix.shape[1])
     ws.conditional_formatting.add(
         f"B4:{last}{3 + matrix.shape[0]}",
@@ -268,7 +244,7 @@ def _correlation(wb: Workbook, result: AnalysisResult, accent: str) -> None:
             end_color=accent.lstrip("#"),
         ),
     )
-    _widths(ws, {"A": 18, **{get_column_letter(c): 14 for c in range(2, 2 + matrix.shape[1])}})
+    widths(ws, {"A": 18, **{get_column_letter(c): 14 for c in range(2, 2 + matrix.shape[1])}})
 
 
 def _benchmark(wb: Workbook, result: AnalysisResult, accent: str) -> None:
@@ -276,8 +252,8 @@ def _benchmark(wb: Workbook, result: AnalysisResult, accent: str) -> None:
     if stats is None:
         return
     ws = wb.create_sheet("Benchmark")
-    _title(ws, "Portfolio versus benchmark", accent)
-    _header(ws, 3, ["Measure", "Value"], accent)
+    title(ws, "Portfolio versus benchmark", accent)
+    header(ws, 3, ["Measure", "Value"], accent)
     rows: list[tuple[str, float, str]] = [
         ("Beta", stats.beta, RATIO),
         ("Alpha (annualised)", stats.alpha_annualised, PCT),
@@ -289,14 +265,14 @@ def _benchmark(wb: Workbook, result: AnalysisResult, accent: str) -> None:
     ]
     for i, (label, value, fmt) in enumerate(rows, start=4):
         ws.cell(row=i, column=1, value=label)
-        ws.cell(row=i, column=2, value=_number(value)).number_format = fmt
-    _widths(ws, {"A": 30, "B": 14})
+        ws.cell(row=i, column=2, value=number(value)).number_format = fmt
+    widths(ws, {"A": 30, "B": 14})
 
 
 def _inputs(wb: Workbook, result: AnalysisResult, accent: str) -> None:
     ws = wb.create_sheet("Inputs")
-    _title(ws, "Inputs used", accent)
-    _header(ws, 3, ["Asset", "Weight"], accent)
+    title(ws, "Inputs used", accent)
+    header(ws, 3, ["Asset", "Weight"], accent)
     for i, (name, weight) in enumerate(result.weights.items(), start=4):
         ws.cell(row=i, column=1, value=str(name))
         ws.cell(row=i, column=2, value=float(weight)).number_format = "0.0000"
@@ -310,20 +286,73 @@ def _inputs(wb: Workbook, result: AnalysisResult, accent: str) -> None:
     for i, (label, value) in enumerate(config, start=row):
         ws.cell(row=i, column=1, value=label)
         ws.cell(row=i, column=2, value=value).alignment = Alignment(horizontal="right")
-    _widths(ws, {"A": 36, "B": 24})
+    widths(ws, {"A": 36, "B": 24})
 
 
-def build_workbook(result: AnalysisResult, meta: ReportMeta | None = None) -> bytes:
-    """Return the ``.xlsx`` file as bytes."""
+def build_workbook(
+    result: AnalysisResult,
+    meta: ReportMeta | None = None,
+    inputs: ReportInputs | None = None,
+    sections: Iterable[str] | None = None,
+    style: ReportStyle | None = None,
+) -> bytes:
+    """Return the ``.xlsx`` file as bytes. ``sections`` and ``style`` work as for the PDF.
+
+    From a style, the Excel file takes the accent, series colours, line width and line style.
+
+    The Summary, Series and Inputs sheets are always present: they carry the data every other
+    sheet refers to. The other sheets follow the chosen sections.
+    """
     meta = meta or ReportMeta()
-    accent = meta.accent.lstrip("#")
+    inputs = inputs or ReportInputs()
+    chosen = set(resolve(sections, result, inputs))
+    active = make_look(style or ReportStyle(), meta.accent)
+    accent = active.style.accent or meta.accent
+    accent = accent.lstrip("#")
+    with use(active):
+        return _build(result, meta, inputs, chosen, accent)
+
+
+def _neutralise_formulas(wb: Workbook) -> None:
+    """Store text that starts with ``=`` as text, never as a formula.
+
+    openpyxl treats any string beginning with ``=`` as a formula. Asset names come from the
+    person's CSV (or a screenshot read by a model), so a name such as ``=HYPERLINK(...)`` would
+    otherwise run when the workbook is opened. This report writes no formulas of its own.
+    """
+    for sheet in wb.worksheets:
+        for row in sheet.iter_rows():
+            for cell in row:
+                if cell.data_type == "f":
+                    cell.data_type = "s"
+
+
+def _build(
+    result: AnalysisResult,
+    meta: ReportMeta,
+    inputs: ReportInputs,
+    chosen: set[str],
+    accent: str,
+) -> bytes:
     wb = Workbook()
     _summary(wb, result, meta, accent)
     series = _series_sheet(wb, result, accent)
-    _performance(wb, result, series, accent)
-    _risk(wb, result, accent)
-    _correlation(wb, result, accent)
-    _benchmark(wb, result, accent)
+    if "performance" in chosen:
+        _performance(wb, result, series, accent)
+    if "risk" in chosen:
+        _risk(wb, result, accent)
+    if "correlation" in chosen:
+        _correlation(wb, result, accent)
+    if "benchmark" in chosen:
+        _benchmark(wb, result, accent)
+    if "tearsheet" in chosen:
+        excel_sections.tearsheet(wb, result, inputs, accent)
+    if "comparison" in chosen:
+        excel_sections.comparison(wb, inputs, accent)
+    if "monte_carlo" in chosen:
+        excel_sections.monte_carlo(wb, inputs, accent)
+    if "alpha_decay" in chosen:
+        excel_sections.alpha_decay_sheet(wb, result, inputs, accent)
     _inputs(wb, result, accent)
     wb.move_sheet("Series", offset=len(wb.sheetnames))
     for sheet in wb.worksheets:
@@ -333,6 +362,7 @@ def build_workbook(result: AnalysisResult, meta: ReportMeta | None = None) -> by
         sheet.sheet_properties.pageSetUpPr.fitToPage = True
     wb.properties.creator = f"Portfolio Risk Lab {meta.version}"
     wb.properties.title = meta.title
+    _neutralise_formulas(wb)
     buffer = io.BytesIO()
     wb.save(buffer)
     return buffer.getvalue()

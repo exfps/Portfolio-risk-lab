@@ -49,6 +49,8 @@ class Palette:
     accent_bright: str
     gold: str
     negative: str
+    colour_blind_lines: bool = False  # series lines use a colour-blind-safe set and dashes
+    line_width: float = 1.6  # comparison-chart line width in pixels
 
 
 DEFAULT = Palette(
@@ -74,6 +76,10 @@ PRESETS: dict[str, Palette] = {
         accent_bright="#9AD1B0", gold="#C2B07A",
     ),
 }  # fmt: skip
+
+# Okabe and Ito (2008) colours that stay readable on the dark surface; yellow stands in for white.
+COLOUR_BLIND_LINES = ("#56B4E9", "#E69F00", "#009E73", "#F0E442", "#D55E00", "#CC79A7")
+LINE_WIDTHS = (1.0, 3.0)  # the allowed range for ``Palette.line_width``
 
 FONT_SIZES: dict[str, int] = {"Compact": 15, "Comfortable": 16, "Large": 18}
 MIN_ACCENT_CONTRAST = 3.0  # WCAG minimum for graphical objects and large text

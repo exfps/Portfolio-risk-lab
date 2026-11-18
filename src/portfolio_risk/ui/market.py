@@ -22,6 +22,7 @@ from portfolio_risk.data import (
     PriceSeries,
     YahooProvider,
     align_prices,
+    by_kind,
     currency_warnings,
     download_many,
     to_base,
@@ -108,6 +109,24 @@ def fetch(
     )
 
 
+def _default_list() -> None:
+    """Pick from the bundled list of stocks and index funds; adds to the ticker box."""
+    kind = st.radio("Default list", ["Stocks", "Index funds"], horizontal=True, key="uni_kind")
+    items = by_kind("stock" if kind == "Stocks" else "index_fund")
+    labels = {i.label: i.symbol for i in items}
+    chosen = st.multiselect("Choose from the list", list(labels), key="uni_pick")
+
+    def add() -> None:
+        current = list(st.session_state.get(TICKERS, []))
+        for label in st.session_state.get("uni_pick", []):
+            if labels[label] not in current:
+                current.append(labels[label])
+        st.session_state[TICKERS] = current[:MAX_TICKERS]
+        st.session_state["uni_pick"] = []
+
+    st.button("Add chosen", disabled=not chosen, on_click=add)
+
+
 def _search_box() -> None:
     query = st.text_input("Find a ticker", placeholder="Company name or ticker", key="search_q")
     if not query.strip():
@@ -146,6 +165,7 @@ def sidebar_download() -> bytes | None:
         "Prices come from Yahoo Finance through an unofficial library, for personal use. "
         "Check each ticker and its currency before relying on the result."
     )
+    _default_list()
     _search_box()
     symbols = st.multiselect(
         "Tickers",

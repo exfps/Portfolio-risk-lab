@@ -153,7 +153,129 @@ VaR(95%) = `1.6448536 * std`, CVaR(95%) = `2.0627128 * std`.
 weights. `Sigma w = [0.025, 0.010]`, variance `0.0175`, contributions `0.0125/0.0175 = 5/7` and
 `0.005/0.0175 = 2/7`.
 
-## 10. Limitations
+## 10. Monte Carlo projection
+
+The projection simulates many possible futures for the constant-weight portfolio and reports
+the spread of outcomes. It is a model of the past, not a forecast.
+
+**Inputs.** Validated simple returns (no missing or infinite values, at least 60 observations,
+a warning below 252), the portfolio weights, and a `SimulationConfig`: number of paths
+(10 to 200,000), horizon in years, frequency (daily 252, weekly 52, monthly 12 periods a year),
+rebalancing (never, every period, monthly, quarterly, annually), transaction cost as a fraction
+of traded value, starting value, the "bust" drawdown (default 25%), the target return
+(default +50%) and an optional random seed. Daily history is compounded to weekly or monthly
+returns for those frequencies; partial periods at the edges are dropped. Every assumption used is
+printed with the result and in the report.
+
+**Return models** (each is fitted to the historical returns and produces simulated asset returns):
+
+| Model | What it assumes |
+|---|---|
+| Gaussian | Returns are multivariate normal with the historical mean and covariance. |
+| Student-t | Same covariance, fatter tails: `R = mu + sqrt((nu - 2) / W) * A Z`, with `Z` standard normal, `W` chi-squared with `nu` degrees of freedom (default 5) and `A A' = Sigma`. One `W` per path and period is shared by all assets, so extreme days hit assets together. The `(nu - 2)` factor keeps the covariance equal to the historical one. |
+| Historical bootstrap | Whole historical days are drawn with replacement, which keeps the relationships between assets but not the order of days. |
+| Block bootstrap | Runs of consecutive days (default 21, circular) are drawn, which keeps some volatility clustering. The circular join is one artificial seam. |
+
+With **drift = historical** the average historical return is kept. Averages estimated from a few
+years are very noisy, so **drift = zero** removes them and isolates risk. Parametric returns
+are floored at -100% so a wealth path cannot go negative.
+
+**Wealth.** Holdings grow with the simulated asset returns. At each rebalancing date they are
+returned to the target weights and the traded value (the sum of absolute differences) is charged
+at the transaction cost.
+
+**Statistics.** Per path: ending value, annualised return, maximum drawdown, volatility, longest
+time below a previous peak. Across paths: percentiles (5, 10, 25, 50, 75, 90, 95) of ending
+value; value at risk and expected shortfall over the whole horizon at 95% and 99%, reported as
+positive losses and not annualised; the probability of ending below the start; the probability
+that any path falls the bust drawdown below its peak; and the probability of ending above, or
+ever touching, the target. The scenario table is a reading of percentiles of the ending value:
+bull is the 90th, base the median, bear the 10th and severe downturn the 1st. These are
+conventions chosen for readability, not forecasts.
+
+**Reproducibility.** A fixed seed gives identical paths. Without one each run differs, within
+Monte Carlo error (shrinking with the square root of the number of paths).
+
+**Limits.** The models inherit the estimation window: a calm window gives calm futures. The
+historical mean is a poor guide to the future and dominates long-horizon results, which is why
+the zero-drift option exists. Over multi-year horizons the Gaussian and Student-t models give
+similar answers because sums of many returns approach normality, so a fat-tailed model matters
+mainly for short horizons and tail risk. A bootstrap cannot produce an event that is absent
+from the history. Percentiles of simulated wealth are not confidence intervals for the real
+future.
+
+## 11. Alpha decay (rolling-window health)
+
+The question is whether recent behaviour is unusual compared with the portfolio's own history.
+For each statistic and each window length (default 21, 63 and 126 periods) the statistic is
+computed over every rolling window. The most recent window is then compared with the earlier
+ones.
+
+**Statistics (10).** Annualised return, volatility, downside volatility, maximum drawdown,
+average drawdown, win rate, Value at Risk 95%, expected shortfall 95%, payoff ratio and Sharpe
+ratio. Each has a direction: a volatility lower than usual is good, a return higher than usual
+is good.
+
+**Score.** With `prior` the statistic in all earlier windows of the same length, `z = sign *
+(latest - mean(prior)) / std(prior)`, where `sign` is +1 when higher is better and -1 otherwise,
+so a higher score is always better. The percentile rank of the latest value among `prior` is
+shown beside it, with ties counted as half.
+
+**Ratings.** Excellent for `z >= 1.0`, Good for `z >= -0.5`, Warning for `z >= -1.5`, Critical
+below that. With fewer than 30 earlier windows the cell is shown as "Insufficient history"
+instead of a rating. These thresholds are conventions, not statistical results.
+
+**Limits.** Rolling windows overlap, including the earlier windows with the latest one, so they
+are strongly autocorrelated and the history holds far fewer independent observations than it
+has windows. The z-score is a rough flag, not a significance test. A z-score assumes a roughly
+symmetric distribution; drawdown, VaR and payoff ratio are skewed, hence the percentile. Short
+windows are noisy (VaR from fewer than about 20 observations is close to the single worst day).
+A "Critical" reading says recent behaviour differs from the past, not why, and not that it will
+continue.
+
+## 12. Classic tearsheet
+
+A table of 20 statistics side by side for the portfolio, the benchmark and up to four holdings:
+total return, annualised return, volatility, Sharpe, Sortino, Calmar, maximum drawdown,
+longest drawdown, one-period VaR and expected shortfall at 95%, skewness, excess kurtosis, best
+and worst period, share of positive periods, payoff ratio, profit factor, best and worst calendar
+month and share of positive months. Five benchmark-relative rows (beta, annualised alpha,
+correlation, tracking error and information ratio) use the formulas in section 7.
+
+Monthly returns compound the per-period returns inside each calendar month. The calendar-year
+table does the same by year; the first and last years may be partial years, and they are
+included as they are. Rolling volatility, Sharpe and beta use the window you choose (at least 5
+periods). The deepest five drawdown episodes run from the last high through the first return to
+that high, with the depth and the number of observations; an episode that has not recovered has
+no end date. Ratios with a zero denominator are shown as not available rather than as a large
+number. A series with fewer than 30 returns is refused with a message, because the statistics
+would not mean much.
+
+## 13. Portfolio comparison
+
+Up to five constant-weight portfolios are evaluated on the dates on which every asset used by
+any of them, and the benchmark, has a price, so differences come from the weights and not from
+the sample. Each portfolio is analysed exactly as the main portfolio is. The comparison adds the
+holdings side by side, concentration (the number of holdings, the Herfindahl-Hirschman index
+and the effective number of positions, `1 / HHI`) and the correlation between the portfolios'
+returns. A portfolio whose return series has zero variance cannot be analysed and is reported
+by name. Weight sets are saved as a versioned JSON document (at most 10 sets, 50 assets, 40
+character names) that is validated on load.
+
+## 14. Reports
+
+The PDF and Excel exports contain only the sections you select. Monte Carlo and the comparison
+appear only if you have already run them in their tabs, with the same data and weights; a
+stored result is discarded if either has changed, so a report never mixes a stale projection with
+a new portfolio. Nothing is simulated at export time. Every report states the data source, the
+assumptions in force and a notice that it is not investment advice. The PDF charts are vector
+drawings; the Excel charts are native workbook charts.
+
+A report style controls presentation only: colours, line width and dash pattern, per-series
+overrides, paper tone and font. It never changes a number. The colour-blind preset uses the Okabe
+and Ito (2008) palette, and its dash patterns differ between lines so colour is not the only cue.
+
+## 15. Limitations
 
 - Constant weights. Real portfolios drift between rebalances; contributions to risk and
   drawdowns for a buy-and-hold portfolio will differ.
@@ -162,6 +284,8 @@ weights. `Sigma w = [0.025, 0.010]`, variance `0.0175`, contributions `0.0125/0.
   adjusted prices. Dividends, splits, fees, taxes and trading costs are not modelled; the
   library cannot tell whether supplied prices are adjusted.
 - Time-weighted and money-weighted returns require cash-flow data and are not yet implemented.
+- Monte Carlo, alpha decay and the comparison inherit every limit above and add their own
+  (sections 10, 11 and 13). They describe the model and the sample, not the future.
 - VaR assumes the sample is representative of the next period. Historical VaR cannot see
   scenarios absent from the sample. Parametric VaR assumes normality.
 - Volatility, Sharpe and Sortino annualisation assume serially uncorrelated returns.
@@ -170,7 +294,7 @@ weights. `Sigma w = [0.025, 0.010]`, variance `0.0175`, contributions `0.0125/0.
 - Results are only as good as the input file. The library checks for obvious corruption, not
   correctness.
 
-## 11. References
+## 16. References
 
 - Sharpe, W. F. (1994). The Sharpe Ratio. *Journal of Portfolio Management* 21(1).
 - Sortino, F. A. and Price, L. N. (1994). Performance Measurement in a Downside Risk Framework.
@@ -181,3 +305,8 @@ weights. `Sigma w = [0.025, 0.010]`, variance `0.0175`, contributions `0.0125/0.
   *The American Statistician* 50(4).
 - Jensen, M. C. (1968). The Performance of Mutual Funds in the Period 1945-1964.
   *Journal of Finance* 23(2).
+- Okabe, M. and Ito, K. (2008). Color Universal Design (CUD): how to make figures and
+  presentations that are friendly to colorblind people.
+- Efron, B. (1979). Bootstrap Methods: Another Look at the Jackknife. *Annals of Statistics* 7(1).
+- Politis, D. N. and Romano, J. P. (1992). A Circular Block-Resampling Procedure for Stationary
+  Data. In *Exploring the Limits of Bootstrap*.

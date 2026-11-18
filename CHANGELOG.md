@@ -6,6 +6,47 @@ All notable changes are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added in 0.2.0 (in development)
+
+- Default list of 25 stocks and 12 index funds (symbols only).
+- Monte Carlo projection (`portfolio_risk.simulation`): Gaussian, Student-t, historical-bootstrap
+  and block-bootstrap models, rebalancing, transaction costs, seeded runs, per-path and
+  across-path statistics, scenarios; a Monte Carlo tab.
+- Alpha decay (`portfolio_risk.decay`): ten rolling-window statistics, oriented z-scores and
+  ratings; an Alpha Decay tab.
+- Classic tearsheet (`portfolio_risk.tearsheet`): 20 statistics plus benchmark-relative rows,
+  monthly and calendar-year tables, rolling statistics, deepest drawdown episodes; a Tearsheet tab.
+- Portfolio comparison (`portfolio_risk.comparison`): up to five constant-weight portfolios on
+  common dates, concentration, return correlation, validated JSON for saved weight sets; a
+  Compare tab.
+- Reports with selectable sections (`ReportInputs`, `resolve`, `unavailable`); the PDF and the
+  workbook include the tearsheet, comparison, Monte Carlo and alpha decay.
+- A chosen file name for exports (`report.filename.safe_stem`): forbidden characters removed,
+  reserved Windows names suffixed, a typed extension dropped, length capped.
+- Report style customiser (`report.style`, `report.look`): presets (Classic, Colour-blind safe,
+  Black and white print, Editorial), accent, line colours, width, dash mode, per-series
+  overrides, paper tone and font, JSON save and load, `?pdf=` preset in the address. Excel charts
+  take the same colours, widths and dashes.
+- Colour-blind-safe chart lines and a line width in Appearance (`?lines=`, `?lw=`).
+- `docs/verification.md`: what is checked, what is not, and a live-data checklist.
+
+### Fixed in 0.2.0
+
+- Excel export: asset names beginning with `=` were written as live formulas; they are now
+  stored as text (spreadsheet formula injection).
+- A return series that is constant up to rounding no longer gives an astronomically large
+  Sharpe ratio; it is treated as constant (undefined).
+- The screenshot-import client no longer follows HTTP redirects, so the API key header cannot be
+  resent to another address.
+- `assert` statements used for type narrowing replaced by explicit errors.
+- `docs/audit.md`: findings of the self-review.
+
+### Changed in 0.2.0
+
+- Quieter interface: headline figures without boxes, hairline-framed charts and tables.
+- Table builders moved out of the Streamlit views into `ui/*_tables.py`, so reports can share them.
+- The workbook's default contents now include an alpha-decay sheet.
+
 ### Added
 
 - Core analytics library: simple, total and annualised returns; constant-weight portfolio
@@ -24,6 +65,8 @@ All notable changes are recorded here. The format follows
 - Streamlit interface (`portfolio-risk-lab` command, `python -m portfolio_risk`, and
   `streamlit_app.py` for hosted use): sample or CSV input, weights editor, benchmark selection,
   performance, risk, correlation and benchmark tabs, assumptions summary, specific error messages.
+- Default instrument list (`data/universe.json`, 25 stocks and 12 index funds; symbols only) with
+  a validated loader and a sidebar picker.
 - PDF report and Excel workbook export (`portfolio_risk.report`, reportlab and openpyxl), built
   on click, with data source, assumptions and disclaimer; example files in `examples/`.
 - Theme customiser: presets, custom accent with automatic contrast correction, text sizes,
@@ -55,7 +98,5 @@ All notable changes are recorded here. The format follows
 
 ### Not yet implemented
 
-- PDF export (planned for 0.1.0).
-- Time-weighted and money-weighted returns, buy-and-hold weights, rolling statistics, Monte
-  Carlo, factor regression and multi-currency. Screenshot import does not yet downscale images or
-  strip metadata, and has not been run against the real provider APIs.
+- Time-weighted and money-weighted returns, buy-and-hold weights, factor regression and regimes.
+- Screenshot import does not yet downscale images or strip metadata, and has not been run against the real provider APIs.

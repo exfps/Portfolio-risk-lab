@@ -17,6 +17,9 @@ APP = Path(__file__).resolve().parents[1] / "src" / "portfolio_risk" / "ui" / "a
 ENTRY = Path(__file__).resolve().parents[1] / "streamlit_app.py"
 
 
+EXPORT_TABS = {"Contents and file name", "Look"}  # the export panel's own tabs
+
+
 def run(path: Path = APP) -> AppTest:
     return AppTest.from_file(str(path), default_timeout=60).run()
 
@@ -34,11 +37,15 @@ def test_sample_data_renders_every_section() -> None:
     assert not app.exception
     assert not app.error
     assert not app.warning
-    assert [tab.label for tab in app.tabs] == [
+    assert [tab.label for tab in app.tabs if tab.label not in EXPORT_TABS] == [
         "Performance",
         "Risk",
         "Correlation",
         "Benchmark",
+        "Tearsheet",
+        "Compare",
+        "Monte Carlo",
+        "Alpha Decay",
         "Assumptions",
     ]
     metrics = metric_values(app)
@@ -68,7 +75,7 @@ def test_removing_the_benchmark_hides_the_benchmark_tab_and_keeps_the_sample_wor
     selectbox(app, "Benchmark").set_value("None").run()
     assert not app.exception
     assert not app.error
-    assert "Benchmark" not in [tab.label for tab in app.tabs]
+    assert "Benchmark" not in [tab.label for tab in app.tabs if tab.label not in EXPORT_TABS]
 
 
 def test_changing_the_risk_free_rate_changes_the_sharpe_ratio() -> None:

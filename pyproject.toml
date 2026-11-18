@@ -59,7 +59,7 @@ version = { attr = "portfolio_risk.__version__" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-portfolio_risk = ["py.typed", "ui/style.css", "ui/fonts/*"]
+portfolio_risk = ["py.typed", "ui/style.css", "ui/fonts/*", "data/universe.json"]
 
 [tool.ruff]
 line-length = 100

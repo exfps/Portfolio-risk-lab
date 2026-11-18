@@ -37,6 +37,7 @@ def stylesheet(palette: theme.Palette = theme.DEFAULT, base_px: int = 16) -> str
         "accent": palette.accent,
         "accent_bright": palette.accent_bright,
         "gold": palette.gold,
+        "negative": palette.negative,
         "font_stack": theme.FONT_STACK,
         "base_px": f"{base_px}px",
         **{name: _data_uri(filename) for name, filename in _FONTS.items()},

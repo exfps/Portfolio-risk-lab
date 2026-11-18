@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pandas as pd
 import pytest
 from hypothesis import given
@@ -88,3 +89,16 @@ def test_volatility_is_non_negative_and_scales_with_sqrt_periods(
     scaled = annualised_volatility(returns, periods)
     assert daily >= 0.0
     assert scaled == pytest.approx(daily * math.sqrt(periods))
+
+
+def test_sharpe_is_undefined_for_a_series_that_is_constant_up_to_rounding() -> None:
+    """Prices compounding at a fixed rate give returns that differ by about 1e-16, not exactly 0."""
+
+    from portfolio_risk.returns import simple_returns  # noqa: PLC0415
+
+    prices = pd.DataFrame(
+        {"A": 100 * 1.0005 ** np.arange(300)}, index=pd.bdate_range("2021-01-04", periods=300)
+    )
+    constant = simple_returns(prices)["A"]
+    assert constant.std(ddof=1) > 0.0  # the noise is really there
+    assert math.isnan(sharpe_ratio(constant, 0.0, 252))

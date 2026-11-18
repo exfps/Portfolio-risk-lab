@@ -124,3 +124,68 @@ def test_export_buttons_are_offered_with_results() -> None:
     assert not app.exception
     labels = {str(b.proto.label) for b in app.get("download_button")}
     assert {"Download PDF report", "Download Excel"} <= labels
+
+
+def test_colour_blind_lines_use_the_okabe_ito_set_and_every_colour_contrasts() -> None:
+    palette = appearance.resolve("Midnight", None, "Comfortable", "Colour-blind safe").palette
+    colours = charts.series_colours(palette, 6)
+    assert colours == list(theme.COLOUR_BLIND_LINES)
+    for colour in colours:
+        assert theme.contrast_ratio(colour, palette.background) >= 4.5, colour
+    assert len(set(charts.series_colours(palette, 8))) == 6  # wraps after the sixth
+
+
+def test_colour_blind_charts_also_vary_the_dash_pattern() -> None:
+    import pandas as pd  # noqa: PLC0415
+
+    frame = pd.DataFrame(
+        {"A": [1.0, 2.0, 3.0], "B": [1.0, 1.5, 2.0], "C": [1.0, 1.1, 1.2]},
+        index=pd.date_range("2024-01-01", periods=3),
+    )
+    plain = charts.comparison_chart(frame, title="x", fmt=".2f").to_dict()
+    assert "strokeDash" not in plain["encoding"]
+    safe_palette = appearance.resolve("Midnight", None, "Comfortable", "Colour-blind safe").palette
+    safe = charts.comparison_chart(frame, title="x", fmt=".2f", p=safe_palette).to_dict()
+    dash = safe["encoding"]["strokeDash"]["scale"]["range"]
+    assert len({tuple(d) for d in dash}) >= 3
+
+
+def test_line_width_is_clamped_and_reaches_the_chart() -> None:
+    import pandas as pd  # noqa: PLC0415
+
+    low, high = theme.LINE_WIDTHS
+    assert (
+        appearance.resolve("Midnight", None, "Comfortable", line_width=99).palette.line_width
+        == high
+    )
+    assert (
+        appearance.resolve("Midnight", None, "Comfortable", line_width=-1).palette.line_width == low
+    )
+    frame = pd.DataFrame({"A": [1.0, 2.0]}, index=pd.date_range("2024-01-01", periods=2))
+    palette = appearance.resolve("Midnight", None, "Comfortable", line_width=2.6).palette
+    assert (
+        charts.comparison_chart(frame, title="x", fmt=".2f", p=palette).to_dict()["mark"][
+            "strokeWidth"
+        ]
+        == 2.6
+    )
+
+
+def test_unknown_line_settings_fall_back_to_the_defaults() -> None:
+    look = appearance.resolve("Midnight", None, "Comfortable", "Rainbow")
+    assert look.palette.colour_blind_lines is False
+    assert look.palette.line_width == appearance.DEFAULT_LINE_WIDTH
+
+
+def test_line_settings_in_the_page_address_are_applied() -> None:
+    app = AppTest.from_file(str(APP), default_timeout=60)
+    app.query_params["lines"] = "Colour-blind safe"
+    app.query_params["lw"] = "2.4"
+    app.run()
+    assert not app.exception
+    assert next(s for s in app.selectbox if s.label == "Chart lines").value == "Colour-blind safe"
+    assert next(s for s in app.slider if s.label == "Line width" and s.value == 2.4)
+    bad = AppTest.from_file(str(APP), default_timeout=60)
+    bad.query_params["lw"] = "not-a-number"
+    bad.run()
+    assert not bad.exception

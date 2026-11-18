@@ -29,9 +29,25 @@ from portfolio_risk import (
     load_weights,
     vision,
 )
+from portfolio_risk.decay import DEFAULT_WINDOWS, parse_windows
 from portfolio_risk.io.validation import infer_periods_per_year
+from portfolio_risk.report import filename
+from portfolio_risk.report.inputs import KEYS, SECTIONS, ReportInputs, unavailable
 from portfolio_risk.sample_data import BENCHMARK, generate_sample_prices, sample_weights
-from portfolio_risk.ui import appearance, charts, formatting, market, styles, theme
+from portfolio_risk.ui import (
+    appearance,
+    charts,
+    compare_view,
+    decay_view,
+    formatting,
+    market,
+    report_state,
+    report_style_panel,
+    simulation_view,
+    styles,
+    tearsheet_view,
+    theme,
+)
 from portfolio_risk.ui.inputs import (
     SKIP,
     positions_from_review,
@@ -39,6 +55,7 @@ from portfolio_risk.ui.inputs import (
     weights_frame,
     weights_from_frame,
 )
+from portfolio_risk.ui.tearsheet_tables import named_returns
 
 SAMPLE = "Synthetic sample"
 UPLOAD = "Upload CSV files"
@@ -374,7 +391,35 @@ def _offer(label: str, build: Callable[[], bytes], name: str, mime: str, key: st
         st.download_button(label, data=build(), file_name=name, mime=mime, key=key)
 
 
-def _render_exports(result: AnalysisResult, source: str, palette: theme.Palette) -> None:
+EXPORT_NAME = "export_name"
+
+
+def _report_inputs(
+    result: AnalysisResult, prices: pd.DataFrame, benchmark: str | None
+) -> ReportInputs:
+    """Gather what the tabs have produced for this data, so the report can include it."""
+    sig = report_state.signature(prices, result.weights)
+    peers = [p for p in st.session_state.get(tearsheet_view.PEERS_KEY, []) if p in prices.columns]
+    try:
+        windows = parse_windows(str(st.session_state.get(decay_view.WINDOWS_KEY, "")))
+    except PortfolioRiskError:
+        windows = DEFAULT_WINDOWS
+    return ReportInputs(
+        tearsheet=named_returns(result, prices, benchmark, peers),
+        comparison=report_state.recall(report_state.COMPARISON, sig),
+        simulation=report_state.recall(report_state.SIMULATION, sig),
+        decay_windows=windows,
+        benchmark=benchmark,
+    )
+
+
+def _render_exports(
+    result: AnalysisResult,
+    prices: pd.DataFrame,
+    benchmark: str | None,
+    source: str,
+    palette: theme.Palette,
+) -> None:
     try:
         from portfolio_risk.report import ReportMeta  # noqa: PLC0415 - optional extra
         from portfolio_risk.report.excel import build_workbook  # noqa: PLC0415
@@ -387,24 +432,60 @@ def _render_exports(result: AnalysisResult, source: str, palette: theme.Palette)
         risk_free_source=str(st.session_state.get(RF_SOURCE, "")).strip(),
         accent=theme.on_paper(palette.accent),
     )
-    stamp = pd.Timestamp(result.end).strftime("%Y%m%d")
-    left, middle, _ = st.columns([1.3, 1, 5])
-    with left:
-        _offer(
-            "Download PDF report",
-            lambda: build_pdf(result, meta),
-            f"portfolio-report-{stamp}.pdf",
-            "application/pdf",
-            "dl_pdf",
-        )
-    with middle:
-        _offer(
-            "Download Excel",
-            lambda: build_workbook(result, meta),
-            f"portfolio-report-{stamp}.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "dl_xlsx",
-        )
+    inputs = _report_inputs(result, prices, benchmark)
+    missing = unavailable(result, inputs)
+    labels = {s.key: s.label for s in SECTIONS}
+    options = [k for k in KEYS if k not in missing]
+    with st.expander("Export report (PDF or Excel)"):
+        contents, look = st.tabs(["Contents and file name", "Look"])
+        with contents:
+            chosen = st.multiselect(
+                "Sections to include",
+                options,
+                default=options,
+                format_func=labels.__getitem__,
+                help="Monte Carlo and comparison appear once you have run them in their tabs.",
+            )
+            for key, reason in missing.items():
+                st.caption(f"Not available: {labels[key]}. {reason}")
+            default = f"portfolio-report-{pd.Timestamp(result.end).strftime('%Y%m%d')}"
+            typed = st.text_input(
+                "File name",
+                key=EXPORT_NAME,
+                placeholder=default,
+                max_chars=filename.MAX_LENGTH,
+                help="Without an extension; .pdf and .xlsx are added. Leave empty for the default.",
+            )
+            stem = filename.safe_stem(typed, default)
+            if typed.strip() and stem != typed.strip():
+                st.caption(f"Saved as {stem}")
+        with look:
+            names = list(dict.fromkeys([*(inputs.tearsheet or {}), *_comparison_names(inputs)]))
+            style = report_style_panel.controls(names)
+        if not chosen:
+            st.caption("Choose at least one section.")
+            return
+        left, right, _ = st.columns([1.3, 1, 4])
+        with left:
+            _offer(
+                "Download PDF report",
+                lambda: build_pdf(result, meta, inputs, chosen, style),
+                f"{stem}.pdf",
+                "application/pdf",
+                "dl_pdf",
+            )
+        with right:
+            _offer(
+                "Download Excel",
+                lambda: build_workbook(result, meta, inputs, chosen, style),
+                f"{stem}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "dl_xlsx",
+            )
+
+
+def _comparison_names(inputs: ReportInputs) -> list[str]:
+    return list(inputs.comparison.names) if inputs.comparison else []
 
 
 def _render_headline(result: AnalysisResult) -> None:
@@ -458,8 +539,18 @@ history you supplied. They are not predictions or investment advice.
     )
 
 
+def _render_correlation(result: AnalysisResult, palette: theme.Palette) -> None:
+    st.altair_chart(charts.correlation_heatmap(result.correlation, palette))
+
+
 def _render_results(
-    result: AnalysisResult, *, synthetic: bool, palette: theme.Palette, source: str
+    result: AnalysisResult,
+    prices: pd.DataFrame,
+    *,
+    synthetic: bool,
+    palette: theme.Palette,
+    source: str,
+    benchmark: str | None,
 ) -> None:
     if synthetic:
         _notice("Synthetic sample data, simulated for demonstration. It is not a real market.")
@@ -470,31 +561,32 @@ def _render_results(
         f"{result.observations} observations  |  constant weights"
     )
     _render_headline(result)
-    _render_exports(result, source, palette)
+    exports = st.container()  # filled after the tabs, which feed it
 
-    names = ["Performance", "Risk", "Correlation"]
     benchmark_table = formatting.benchmark_table(result)
+    ppy = result.config.periods_per_year
+    sections: dict[str, Callable[[], None]] = {
+        "Performance": lambda: _render_performance(result, palette),
+        "Risk": lambda: _render_risk(result, palette),
+        "Correlation": lambda: _render_correlation(result, palette),
+    }
     if benchmark_table is not None:
-        names.append("Benchmark")
-    names.append("Assumptions")
-    tabs = _tabs(names)
+        sections["Benchmark"] = lambda: _static_table(benchmark_table)
+    sections["Tearsheet"] = lambda: tearsheet_view.render(result, prices, benchmark, palette)
+    sections["Compare"] = lambda: compare_view.render(result, prices, benchmark, palette)
+    sections["Monte Carlo"] = lambda: simulation_view.render(prices, result.weights, palette, ppy)
+    sections["Alpha Decay"] = lambda: decay_view.render(
+        result.portfolio_returns, palette, ppy, result.config.risk_free_annual
+    )
+    sections["Assumptions"] = lambda: _render_assumptions(result)
 
-    with tabs["Performance"]:
-        if _is_open(tabs["Performance"]):
-            _render_performance(result, palette)
-    with tabs["Risk"]:
-        if _is_open(tabs["Risk"]):
-            _render_risk(result, palette)
-    with tabs["Correlation"]:
-        if _is_open(tabs["Correlation"]):
-            st.altair_chart(charts.correlation_heatmap(result.correlation, palette))
-    if benchmark_table is not None:
-        with tabs["Benchmark"]:
-            if _is_open(tabs["Benchmark"]):
-                _static_table(benchmark_table)
-    with tabs["Assumptions"]:
-        if _is_open(tabs["Assumptions"]):
-            _render_assumptions(result)
+    tabs = _tabs(list(sections))
+    for name, draw in sections.items():
+        with tabs[name]:
+            if _is_open(tabs[name]):
+                draw()
+    with exports:
+        _render_exports(result, prices, benchmark, source, palette)
 
 
 def main() -> None:
@@ -547,7 +639,12 @@ def main() -> None:
         DOWNLOAD: market.downloaded_source(),
     }
     _render_results(
-        result, synthetic=data.synthetic, palette=look.palette, source=sources.get(mode, "")
+        result,
+        data.prices,
+        synthetic=data.synthetic,
+        palette=look.palette,
+        source=sources.get(mode, ""),
+        benchmark=benchmark,
     )
 
 

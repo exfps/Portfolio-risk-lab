@@ -6,10 +6,11 @@ risk-adjusted ratios, drawdowns, Value at Risk, concentration, risk contribution
 benchmark-relative statistics, rejects malformed input with specific messages, and documents
 every formula and assumption.
 
-**Status: early development (0.1.0 in preparation).** The calculation core, input validation,
-tests, the Streamlit interface, PDF and Excel export, a theme customiser and optional price
-download work. Several parts have only been tested offline; see
-[Known limitations](#known-limitations) and [Roadmap](#roadmap).
+**Status: early development (0.2.0 in preparation).** The calculation core, input validation,
+the Streamlit interface with tearsheet, comparison, Monte Carlo and alpha-decay views, PDF and
+Excel reports with selectable sections and a style customiser, and optional price download all
+work. Several parts have only been tested offline; see [Known limitations](#known-limitations),
+[docs/verification.md](docs/verification.md), the self-review in [docs/audit.md](docs/audit.md) and [Roadmap](#roadmap).
 
 ## Quick start
 
@@ -40,13 +41,19 @@ here is real market data. They are regenerated with `python scripts/capture_scre
 |---|---|
 | ![Risk tab](screenshots/risk.png) Risk: drawdown, VaR, contribution to risk | ![Correlation](screenshots/correlation.png) Correlation heatmap |
 | ![Benchmark](screenshots/benchmark.png) Benchmark-relative statistics | ![Assumptions](screenshots/assumptions.png) Assumptions in force |
+| ![Tearsheet](screenshots/tearsheet.png) Classic tearsheet | ![Compare](screenshots/compare.png) Portfolio comparison |
+| ![Monte Carlo](screenshots/monte-carlo.png) Monte Carlo projection | ![Alpha decay](screenshots/alpha-decay.png) Alpha decay |
+| ![Export contents](screenshots/export-contents.png) Report sections and file name | ![Export look](screenshots/export-look.png) Report style |
+| ![Default list](screenshots/default-list.png) Default stock and index-fund list |
 | ![Search and download](screenshots/download-search.png) Ticker search | ![Downloaded](screenshots/download-result.png) Downloaded, aligned, base-currency result |
 | ![Screenshot import](screenshots/import-review.png) Screenshot import: review before use | ![Appearance](screenshots/appearance.png) Appearance controls |
 | ![Obsidian gold](screenshots/theme-obsidian-gold.png) Preset theme | ![Graphite large](screenshots/theme-graphite-large.png) Graphite, large text |
 | ![PDF](screenshots/report-pdf.png) PDF report, page 1 | ![Excel](screenshots/report-excel.png) Excel workbook, summary sheet |
+| ![Colour-blind PDF](screenshots/report-pdf-colour-blind.png) Colour-blind-safe style, Monte Carlo page | |
 
-Example exports: [examples/sample_report.pdf](examples/sample_report.pdf) and
-[examples/sample_report.xlsx](examples/sample_report.xlsx) (synthetic data).
+Example exports (synthetic data, every section): [examples/sample_report.pdf](examples/sample_report.pdf),
+[examples/sample_report.xlsx](examples/sample_report.xlsx) and the colour-blind-safe style,
+[examples/sample_report_colour_blind.pdf](examples/sample_report_colour_blind.pdf).
 
 ## Problem
 
@@ -73,22 +80,45 @@ Implemented:
   length, suspicious price jumps, weights, column alignment and annualisation frequency
 - Seeded synthetic sample data
 - Streamlit interface: sample or uploaded CSV data, editable weights, benchmark selection,
-  performance, risk, correlation and benchmark tabs, and an assumptions summary
+  tabs for performance, risk, correlation, benchmark, tearsheet, comparison, Monte Carlo and
+  alpha decay, and an assumptions summary
 - Optional price download by ticker (Yahoo Finance via `yfinance`, replaceable provider), with
   search, common-day or weekly alignment and optional conversion to a base currency using daily
   exchange rates from the same source. Downloads run in parallel and results are cached in memory
   for 15 minutes. Offline-tested only.
-- PDF report (three pages) and Excel workbook (summary, returns, drawdown, risk, correlation
-  with native charts), built only when you click the download button. Each states the data
-  source, assumptions and a not-advice notice.
+- Default list: 25 stocks (US, a few global US listings, and five Saudi names) and 12 index
+  funds, chosen from a picker in the sidebar. The list holds symbols only, no prices, and the
+  symbols have not been checked against the live service from the build environment.
+- PDF report and Excel workbook (summary, performance, risk, correlation, benchmark, tearsheet,
+  comparison, Monte Carlo, alpha decay, assumptions; vector PDF charts, native Excel charts),
+  built only when you click the download button. Each states the data source, assumptions and a
+  not-advice notice.
 - Theme customiser: four presets, a custom accent colour (automatically lightened if its contrast
-  against the background is too low), three text sizes, kept in the page address so a bookmark
-  restores it. Exports use a print-safe version of the accent.
+  against the background is too low), three text sizes, colour-blind-safe chart lines and a line
+  width, kept in the page address so a bookmark restores it. Exports use a print-safe accent.
 - Optional import of positions from a screenshot, using your own Anthropic, OpenAI or DeepSeek
   API key. The result is shown for review and editing before it becomes weights.
 
-Not implemented yet: time-weighted and money-weighted returns, buy-and-hold drift, rolling
-statistics, Monte Carlo, factor regression.
+- **Classic tearsheet:** 20 statistics side by side for the portfolio, benchmark and up to four
+  holdings, plus benchmark-relative statistics, a monthly return grid, calendar-year returns,
+  rolling volatility, Sharpe and beta, and the five deepest drawdown episodes.
+- **Portfolio comparison:** save weight sets under a name (kept in the session, or as JSON) and
+  compare up to five on identical dates: statistics, holdings, concentration, return correlation.
+- **Monte Carlo projection:** Gaussian, Student-t, historical-bootstrap and block-bootstrap
+  models, rebalancing and transaction costs, a seeded fan chart, percentile tables, loss, drawdown
+  and target probabilities, horizon VaR and expected shortfall, and bull, base, bear and severe
+  scenarios. Model output, not a forecast.
+- **Alpha decay:** ten statistics over rolling windows, each rated Excellent, Good, Warning or
+  Critical by how the latest window compares with the earlier ones. A rough flag, not a test.
+- **Reports with selectable sections:** the PDF and Excel files contain the sections you tick,
+  under a file name you choose. Monte Carlo and the comparison are included only if you have run
+  them. Nothing is simulated at export time.
+- **Report style customiser:** presets (including a colour-blind-safe palette and a black and
+  white print style), accent, line colours, width and dash pattern, per-series overrides, paper
+  tone and font, saved and loaded as JSON. The app's chart lines can also be colour-blind safe.
+
+Not implemented yet: time-weighted and money-weighted returns, buy-and-hold drift, factor
+regression, regimes.
 
 ## Example
 
@@ -193,15 +223,16 @@ The full file format, result fields and error messages are in
 ```
 src/portfolio_risk/   library (see docs/architecture.md)
   data/               optional price providers, alignment, FX, cache
-  report/             PDF and Excel exporters
+  simulation/         Monte Carlo models, engine and statistics (NumPy only)
+  report/             PDF and Excel exporters, report styles, selectable sections
   vision/             optional screenshot import (bring your own key)
-  ui/                 Streamlit interface, charts, theme customiser
-tests/                unit, property-based, malformed-input and interface tests
+  ui/                 Streamlit interface, tab views, charts, theme and report-style panels
+tests/                unit, property-based, malformed-input, report and interface tests
 examples/             synthetic sample prices and weights
 scripts/              sample data, example reports, screenshot capture, browser check
 screenshots/          interface screenshots (synthetic data)
 streamlit_app.py      entry point for Streamlit Community Cloud
-docs/                 methodology, architecture, user guide
+docs/                 methodology, architecture, user guide, roadmap, verification checklist
 ```
 
 ## Testing
@@ -211,30 +242,31 @@ python -m pytest --cov
 ruff check . && ruff format --check . && mypy
 ```
 
-The suite has 298 tests. Each metric is checked against a value worked by hand (the working is
+The suite has 524 tests. Each metric is checked against a value worked by hand (the working is
 in the test and in [docs/methodology.md](docs/methodology.md)), against properties that must
 always hold (contributions sum to 1, CVaR is at least VaR, drawdown is within [-1, 0]), and
-against malformed input. Line coverage is 99%. That figure excludes `ui/app.py`, because
-Streamlit's test harness runs the script in a way coverage cannot trace; seven tests in
-`tests/test_ui_app.py` do exercise it. `scripts/browser_check.py` is an optional end-to-end check
-that drives the running app in Chromium (28 checks, including malformed and Windows-style
-files); it needs `pip install playwright` and `python -m playwright install chromium`.
-It was run on Linux with Python 3.13. Windows has not been tested on real hardware; CI runs the
-tests on Windows as well as Linux, but the browser check is Linux-only.
+against malformed input. Reports are checked by reading the generated PDF and workbook back.
+Line coverage is 96% (measured with `pytest --cov`). The coverage figure excludes `ui/app.py`,
+because Streamlit's test harness runs the script in a way coverage cannot trace; the
+interface tests exercise it. `scripts/browser_check.py` is an optional end-to-end check that
+drives the running app in Chromium; it needs `pip install playwright` and
+`python -m playwright install chromium`. It was last run on Linux with Python 3.13 before the
+0.2 views were added; `scripts/capture_screenshots.py` drives the newer views in a real browser.
+Windows has not been tested on real hardware; CI runs the tests on Windows as well as Linux.
 
 ## Roadmap
 
 Detailed status is in [docs/roadmap.md](docs/roadmap.md).
 
-1. **0.1.0:** verify price download and Gulf coverage against the live provider, deploy on
-   Streamlit Community Cloud, confirm on Windows.
+1. **0.2.0:** verify price download and Gulf coverage against the live provider
+   ([checklist](docs/verification.md)), deploy on Streamlit Community Cloud, confirm on Windows.
 2. **GCC support:** Gulf trading calendars, local benchmark shortcuts, Shariah-screen flag,
    Arabic and right-to-left layout.
-3. **Done:** price download, base-currency conversion, PDF and Excel export, theme customiser.
-4. **0.2:** harden the screenshot import: test against the real provider APIs, downscale images
-   and strip metadata before sending.
-5. **0.3:** transactions input, time-weighted and money-weighted returns (XIRR), buy-and-hold.
-6. **Later:** rolling statistics and regimes, Monte Carlo, factor regression.
+3. **Done:** price download, base-currency conversion, PDF and Excel export with selectable
+   sections and styles, theme customiser, Monte Carlo, alpha decay, tearsheet, comparison.
+4. **Next:** harden the screenshot import (real provider tests, downscale images, strip metadata).
+5. **Then:** transactions input, time-weighted and money-weighted returns (XIRR), buy-and-hold.
+6. **Later:** regimes, factor regression.
 
 ## Known limitations
 
@@ -244,9 +276,15 @@ Detailed status is in [docs/roadmap.md](docs/roadmap.md).
 - VaR and the annualised ratios rely on assumptions (a representative sample, serially
   uncorrelated returns, normality for the parametric variants) that real returns violate.
 - Tail estimates from fewer than about 250 observations are unreliable.
+- Monte Carlo output describes a fitted model, not the future. A calm estimation window gives
+  calm futures, the historical average return is a noisy input, and a bootstrap cannot create an
+  event absent from the history.
+- Alpha-decay ratings compare the latest window with overlapping earlier windows, so the
+  z-score is a rough flag and the thresholds are conventions.
+- Reports are checked in LibreOffice and by reading the files back, not in Microsoft Excel.
 - The library checks for corrupt input, not for incorrect input.
 
-The full list is in [docs/methodology.md](docs/methodology.md#10-limitations). These are
+The full list is in [docs/methodology.md](docs/methodology.md#15-limitations). These are
 analytical tools, not investment advice or a guarantee of future performance.
 
 ## Data sources and attribution

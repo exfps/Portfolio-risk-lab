@@ -71,6 +71,13 @@ PROVIDERS: tuple[Provider, ...] = (
 )
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse redirects. ``urllib`` would otherwise resend the key header to the new address."""
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
 def _ssl_context() -> ssl.SSLContext:
     """TLS context that verifies certificates, using the ``certifi`` bundle when it is installed.
 
@@ -218,10 +225,12 @@ class VisionClient:
             method="POST",
         )
         name = self.provider.label
+        opener = urllib.request.build_opener(
+            _NoRedirect, urllib.request.HTTPSHandler(context=_ssl_context())
+        )
         try:
-            with urllib.request.urlopen(
-                request, timeout=self.timeout, context=_ssl_context()
-            ) as response:
+            # The scheme is checked in _base_url (HTTPS, or HTTP on localhost only).
+            with opener.open(request, timeout=self.timeout) as response:  # nosec B310
                 raw = response.read(_MAX_RESPONSE_BYTES + 1)
         except urllib.error.HTTPError as error:
             detail = self._provider_message(error.read(_MAX_RESPONSE_BYTES))
@@ -229,6 +238,11 @@ class VisionClient:
             if error.code in {401, 403}:
                 raise ExtractionError(
                     f"{name} rejected the API key or its permissions.{suffix}"
+                ) from None
+            if 300 <= error.code < 400:
+                raise ExtractionError(
+                    f"{name} tried to redirect the request. It was not followed, so the key "
+                    "was not sent anywhere else."
                 ) from None
             if error.code == 404:
                 raise ExtractionError(

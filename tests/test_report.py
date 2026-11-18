@@ -11,7 +11,7 @@ from openpyxl import load_workbook
 from pypdf import PdfReader
 
 from portfolio_risk import AnalysisConfig, AnalysisResult, analyse
-from portfolio_risk.report import ReportMeta, excel
+from portfolio_risk.report import ReportMeta, excel_common
 from portfolio_risk.report.excel import build_workbook
 from portfolio_risk.report.pdf import build_pdf
 from portfolio_risk.sample_data import BENCHMARK, generate_sample_prices, sample_weights
@@ -75,7 +75,8 @@ def test_pdf_escapes_markup_in_free_text(result: AnalysisResult) -> None:
 def test_workbook_sheets_and_values_match_the_result(result: AnalysisResult) -> None:
     book = load_workbook(io.BytesIO(build_workbook(result, META)))
     assert book.sheetnames == [
-        "Summary", "Performance", "Risk", "Correlation", "Benchmark", "Inputs", "Series",
+        "Summary", "Performance", "Risk", "Correlation", "Benchmark", "Alpha decay", "Inputs",
+        "Series",
     ]  # fmt: skip
     summary = {row[0].value: row[1].value for row in book["Summary"].iter_rows() if row[0].value}
     assert summary["Total return"] == pytest.approx(result.performance.total_return)
@@ -121,9 +122,9 @@ def test_workbook_without_benchmark_has_no_benchmark_sheet(no_benchmark: Analysi
 
 
 def test_workbook_leaves_non_finite_values_empty(result: AnalysisResult) -> None:
-    assert excel._number(math.nan) is None
-    assert excel._number(math.inf) is None
-    assert excel._number(1.5) == 1.5
+    assert excel_common.number(math.nan) is None
+    assert excel_common.number(math.inf) is None
+    assert excel_common.number(1.5) == 1.5
 
 
 def test_report_meta_rejects_bad_accent() -> None:
@@ -131,3 +132,28 @@ def test_report_meta_rejects_bad_accent() -> None:
         ReportMeta(accent="teal")
     with pytest.raises(ValueError, match="#RRGGBB"):
         ReportMeta(accent="#12345")
+
+
+def test_asset_names_that_look_like_formulas_are_stored_as_text() -> None:
+    """A CSV column named ``=HYPERLINK(...)`` must not become a live formula in the workbook."""
+    import numpy as np  # noqa: PLC0415
+    import pandas as pd  # noqa: PLC0415
+
+    rng = np.random.default_rng(2)
+    n = 120
+    names = ['=HYPERLINK("http://example.invalid","x")', "+SUM(1,1)"]
+    prices = pd.DataFrame(
+        {name: 100 * np.cumprod(1 + rng.normal(5e-4, 0.01, n + 1)) for name in names},
+        index=pd.bdate_range("2022-01-03", periods=n + 1),
+    )
+    result = analyse(prices, pd.Series({names[0]: 0.5, names[1]: 0.5}))
+    book = load_workbook(io.BytesIO(build_workbook(result)))
+    formulas = [
+        (sheet.title, cell.coordinate)
+        for sheet in book
+        for row in sheet.iter_rows()
+        for cell in row
+        if cell.data_type == "f"
+    ]
+    assert formulas == []
+    assert any(cell.value == names[0] for row in book["Inputs"].iter_rows() for cell in row)

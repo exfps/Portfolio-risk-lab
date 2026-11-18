@@ -16,7 +16,7 @@ import urllib.request
 import certifi
 import pytest
 
-from fake_provider import Fake
+from fake_provider import Fake, serve
 from portfolio_risk.errors import ConfigurationError, DataValidationError, ExtractionError
 from portfolio_risk.vision import (
     MAX_IMAGE_BYTES,
@@ -390,8 +390,20 @@ def test_a_certificate_failure_explains_the_fix_and_sends_nothing(
     def refuse(*args: object, **kwargs: object) -> None:
         raise urllib.error.URLError(ssl.SSLCertVerificationError("unable to get local issuer"))
 
-    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", refuse)
     monkeypatch.delenv(BASE_URL_OVERRIDE, raising=False)
     with pytest.raises(ExtractionError, match=r"Install Certificates\.command") as caught:
         extract_positions(_client("deepseek"), PNG)
     assert KEY not in str(caught.value)
+
+
+def test_redirect_is_not_followed_and_key_is_not_resent(fake: Fake) -> None:
+    """A provider (or something in between) that redirects must never receive the key header."""
+    with serve() as elsewhere:
+        fake.reply["status"] = 307
+        fake.reply["headers"] = {"Location": f"{elsewhere.url}/steal"}
+        client = VisionClient(provider_by_key("openai"), KEY, "gpt-test")
+        with pytest.raises(ExtractionError, match="redirect"):
+            client.read_image(PNG, "image/png", "prompt")
+        assert elsewhere.seen.path == ""
+        assert "authorization" not in elsewhere.seen.headers

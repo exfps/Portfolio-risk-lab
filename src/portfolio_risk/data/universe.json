@@ -1,0 +1,302 @@
+{
+ "_comment": "Ticker list only; no prices are bundled. Symbols are Yahoo Finance symbols and have NOT been checked against the live service from the project's build environment. Names are for identification only.",
+ "checked_live": false,
+ "instruments": [
+  {
+   "symbol": "AAPL",
+   "name": "Apple",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Technology"
+  },
+  {
+   "symbol": "MSFT",
+   "name": "Microsoft",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Technology"
+  },
+  {
+   "symbol": "NVDA",
+   "name": "NVIDIA",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Technology"
+  },
+  {
+   "symbol": "AMZN",
+   "name": "Amazon",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Consumer discretionary"
+  },
+  {
+   "symbol": "GOOGL",
+   "name": "Alphabet (Class A)",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Communication services"
+  },
+  {
+   "symbol": "META",
+   "name": "Meta Platforms",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Communication services"
+  },
+  {
+   "symbol": "JPM",
+   "name": "JPMorgan Chase",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Financials"
+  },
+  {
+   "symbol": "V",
+   "name": "Visa",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Financials"
+  },
+  {
+   "symbol": "BRK-B",
+   "name": "Berkshire Hathaway (Class B)",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Financials"
+  },
+  {
+   "symbol": "XOM",
+   "name": "Exxon Mobil",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Energy"
+  },
+  {
+   "symbol": "JNJ",
+   "name": "Johnson & Johnson",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Health care"
+  },
+  {
+   "symbol": "LLY",
+   "name": "Eli Lilly",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Health care"
+  },
+  {
+   "symbol": "WMT",
+   "name": "Walmart",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Consumer staples"
+  },
+  {
+   "symbol": "KO",
+   "name": "Coca-Cola",
+   "kind": "stock",
+   "region": "US",
+   "currency": "USD",
+   "group": "Consumer staples"
+  },
+  {
+   "symbol": "TSM",
+   "name": "Taiwan Semiconductor (US ADR)",
+   "kind": "stock",
+   "region": "Taiwan",
+   "currency": "USD",
+   "group": "Technology"
+  },
+  {
+   "symbol": "NVO",
+   "name": "Novo Nordisk (US ADR)",
+   "kind": "stock",
+   "region": "Denmark",
+   "currency": "USD",
+   "group": "Health care"
+  },
+  {
+   "symbol": "ASML",
+   "name": "ASML (US listing)",
+   "kind": "stock",
+   "region": "Netherlands",
+   "currency": "USD",
+   "group": "Technology"
+  },
+  {
+   "symbol": "SHEL",
+   "name": "Shell (US listing)",
+   "kind": "stock",
+   "region": "UK",
+   "currency": "USD",
+   "group": "Energy"
+  },
+  {
+   "symbol": "TM",
+   "name": "Toyota Motor (US ADR)",
+   "kind": "stock",
+   "region": "Japan",
+   "currency": "USD",
+   "group": "Consumer discretionary"
+  },
+  {
+   "symbol": "SAP",
+   "name": "SAP (US ADR)",
+   "kind": "stock",
+   "region": "Germany",
+   "currency": "USD",
+   "group": "Technology"
+  },
+  {
+   "symbol": "2222.SR",
+   "name": "Saudi Aramco",
+   "kind": "stock",
+   "region": "Saudi Arabia",
+   "currency": "SAR",
+   "group": "Energy"
+  },
+  {
+   "symbol": "1120.SR",
+   "name": "Al Rajhi Bank",
+   "kind": "stock",
+   "region": "Saudi Arabia",
+   "currency": "SAR",
+   "group": "Financials"
+  },
+  {
+   "symbol": "1180.SR",
+   "name": "Saudi National Bank",
+   "kind": "stock",
+   "region": "Saudi Arabia",
+   "currency": "SAR",
+   "group": "Financials"
+  },
+  {
+   "symbol": "2010.SR",
+   "name": "SABIC",
+   "kind": "stock",
+   "region": "Saudi Arabia",
+   "currency": "SAR",
+   "group": "Materials"
+  },
+  {
+   "symbol": "7010.SR",
+   "name": "stc (Saudi Telecom)",
+   "kind": "stock",
+   "region": "Saudi Arabia",
+   "currency": "SAR",
+   "group": "Communication services"
+  },
+  {
+   "symbol": "SPY",
+   "name": "SPDR S&P 500 ETF",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "US large-cap equity"
+  },
+  {
+   "symbol": "QQQ",
+   "name": "Invesco QQQ (Nasdaq-100)",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "US large-cap growth equity"
+  },
+  {
+   "symbol": "VTI",
+   "name": "Vanguard Total Stock Market ETF",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "US total-market equity"
+  },
+  {
+   "symbol": "ACWI",
+   "name": "iShares MSCI ACWI ETF",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "Global equity"
+  },
+  {
+   "symbol": "EFA",
+   "name": "iShares MSCI EAFE ETF",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "Developed ex-US equity"
+  },
+  {
+   "symbol": "EEM",
+   "name": "iShares MSCI Emerging Markets ETF",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "Emerging-market equity"
+  },
+  {
+   "symbol": "KSA",
+   "name": "iShares MSCI Saudi Arabia ETF",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "Saudi equity (USD)"
+  },
+  {
+   "symbol": "UAE",
+   "name": "iShares MSCI UAE ETF",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "UAE equity (USD)"
+  },
+  {
+   "symbol": "QAT",
+   "name": "iShares MSCI Qatar ETF",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "Qatar equity (USD)"
+  },
+  {
+   "symbol": "AGG",
+   "name": "iShares Core US Aggregate Bond ETF",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "US investment-grade bonds"
+  },
+  {
+   "symbol": "TLT",
+   "name": "iShares 20+ Year Treasury Bond ETF",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "Long US Treasuries"
+  },
+  {
+   "symbol": "GLD",
+   "name": "SPDR Gold Shares",
+   "kind": "index_fund",
+   "region": "Fund",
+   "currency": "USD",
+   "group": "Gold"
+  }
+ ]
+}

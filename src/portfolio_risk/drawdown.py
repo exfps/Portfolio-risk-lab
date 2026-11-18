@@ -93,3 +93,32 @@ def summarise_drawdowns(levels: pd.Series) -> DrawdownSummary:
         longest_ongoing=longest[1] == values.size,
         current_drawdown=current,
     )
+
+
+def drawdown_periods(levels: pd.Series, limit: int = 5) -> pd.DataFrame:
+    """The ``limit`` deepest drawdown episodes, deepest first.
+
+    An episode runs from the last high (``start``) through the first observation back at that
+    high (``end``). ``end`` is ``NaT`` and ``recovered`` is False when the level never regained
+    the high. ``periods`` counts observations from ``start`` to ``end`` (or to the last
+    observation when not recovered).
+    """
+    values = _levels(levels, "Drawdown periods")
+    drawdown = values / np.maximum.accumulate(values) - 1.0
+    labels = pd.DatetimeIndex(levels.index)
+    rows = []
+    for first, last in _underwater_runs(drawdown < 0.0):
+        recovered = last < values.size
+        deepest = first + int(np.argmin(drawdown[first:last]))
+        rows.append(
+            {
+                "start": labels[first - 1] if first > 0 else labels[0],
+                "trough": labels[deepest],
+                "end": labels[last] if recovered else pd.NaT,
+                "depth": float(drawdown[deepest]),
+                "periods": (last - first) + (1 if recovered else 0),
+                "recovered": recovered,
+            }
+        )
+    frame = pd.DataFrame(rows, columns=["start", "trough", "end", "depth", "periods", "recovered"])
+    return frame.sort_values("depth").head(limit).reset_index(drop=True)

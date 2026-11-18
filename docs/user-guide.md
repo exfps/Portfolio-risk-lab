@@ -1,7 +1,6 @@
 # User guide
 
-This guide covers the current release, which is used as a Python library. The Streamlit interface
-and PDF export are planned and not yet available.
+This guide covers the library and the Streamlit interface (version 0.2.0.dev0).
 
 ## The interface
 
@@ -27,19 +26,64 @@ Install with `python -m pip install -e ".[app]"` and run `portfolio-risk-lab` (o
    unofficial, so check every ticker, its currency and its dates before relying on the result.
 3. **Weights.** Open the *Weights* section to edit them. They must sum to 1, or tick *Rescale
    weights that do not sum to 1*.
-4. **Results.** Headline metrics sit above tabs for performance, risk, correlation, benchmark
-   (only when a benchmark is chosen) and assumptions. Problems with your files appear as a
-   red message that names the line, column or date at fault.
+4. **Results.** Headline figures sit above tabs: Performance, Risk, Correlation, Benchmark (only
+   when a benchmark is chosen), Tearsheet, Compare, Monte Carlo, Alpha Decay and Assumptions.
+   Tabs draw only when opened, so the page stays light. Problems with your files appear as a
+   red message that names the line, column or date at fault. The analysis tabs are described
+   under [The analysis tabs](#the-analysis-tabs).
 
-5. **Export.** *Download PDF report* and *Download Excel* appear under the headline metrics. Both
-   record the data source and the assumptions in force. Examples: `examples/sample_report.pdf`
-   and `examples/sample_report.xlsx`.
+   Under *Search and download*, *Default list* lets you tick stocks or index funds and add them
+   to the ticker box. It is a convenience list, not a recommendation.
+5. **Export.** *Export report (PDF or Excel)* sits under the headline figures. See
+   [Exporting a report](#exporting-a-report).
 6. **Appearance.** The *Appearance* section in the sidebar offers four presets, a custom accent
-   colour and three text sizes. Low-contrast accents are lightened automatically. The choice is
-   stored in the page address (`?theme=...&accent=...&size=...`), so bookmarking the page keeps it.
-   Toggles and sliders keep the default teal.
+   colour, three text sizes, *Chart lines* (Standard, or Colour-blind safe, which also gives each
+   line its own dash pattern) and a line width. Low-contrast accents are lightened automatically.
+   The choice is stored in the page address (`?theme=...&accent=...&size=...&lines=...&lw=...`),
+   so bookmarking the page keeps it. Toggles and sliders keep the default teal.
 
 Uploaded files stay in memory for the session and are not saved.
+
+### The analysis tabs
+
+- **Tearsheet.** The portfolio, the benchmark and up to four holdings you choose, side by side:
+  20 statistics (and 5 benchmark-relative ones), a monthly return grid, calendar-year returns,
+  rolling volatility, Sharpe and beta over a window you pick, and the five deepest drawdowns.
+- **Compare.** Save the current weights under a name, then compare up to five saved portfolios
+  on exactly the same dates. Saved sets can be downloaded and loaded as JSON (they live in the
+  session otherwise). Shows statistics, holdings, concentration and the correlation of the
+  portfolios' returns.
+- **Monte Carlo.** Choose one or more return models (Gaussian, Student-t, historical bootstrap,
+  block bootstrap), horizon, number of simulations, frequency, rebalancing, expected-return
+  treatment (historical average or zero), transaction cost, the drawdown to flag, the target
+  gain, the starting value and a random seed (42 by default, so a rerun repeats), then press
+  *Run simulation*. Results show a fan chart, percentile tables, the probability of loss, of
+  the flagged drawdown and of reaching the target, value at risk and expected shortfall over the
+  horizon, and bull, base, bear and severe scenarios. The results are model output, not forecasts.
+- **Alpha Decay.** Ten statistics over rolling windows (21, 63 and 126 periods by default; you can
+  type others), each rated Excellent, Good, Warning or Critical by how the latest window compares
+  with the earlier ones, shown as a matrix with a chart for one statistic and window. See
+  [methodology section 11](methodology.md#11-alpha-decay-rolling-window-health) for what the
+  rating does and does not mean.
+
+### Exporting a report
+
+Open *Export report (PDF or Excel)*.
+
+1. **Contents and file name.** Choose the sections. Summary, performance, risk, correlation,
+   benchmark (if chosen), classic tearsheet, alpha decay and assumptions are always available.
+   The comparison and Monte Carlo sections are listed as unavailable, with the reason, until
+   you have run them in their tabs; a result is used only while the data and weights are
+   unchanged. Type a file name without an extension (the PDF gets `.pdf`, the workbook `.xlsx`);
+   characters that Windows, macOS or Linux do not allow are removed and the field says what it
+   saved. Empty means `portfolio-report-YYYYMMDD`.
+2. **Look.** Pick a preset (Classic, Colour-blind safe, Black and white print, Editorial) or
+   change paper tone, font, line width, line styles, accent and the first six line colours, and
+   override colour, width or style for a named series. *Save this style (JSON)* writes it to a
+   file and *Load a style file* reads one back; a preset can also be chosen in the address with
+   `?pdf=Editorial`. A style changes presentation only, never a number.
+3. Press *Download PDF report* or *Download Excel*. The file is built when you press the button.
+   Dark paper is not offered because reports are meant to be printed.
 
 ### Importing positions from a screenshot
 
